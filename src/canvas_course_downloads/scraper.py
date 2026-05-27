@@ -2,8 +2,6 @@ import re
 import urllib.parse
 from pathlib import Path
 
-from playwright.sync_api import TimeoutError as PwTimeout
-
 from .models import Course
 
 
@@ -122,7 +120,10 @@ def collect_file_urls_from_page(page, base_url: str) -> set[str]:
 def api_get_json(api, url: str) -> list[dict]:
     results = []
     while url:
-        resp = api.get(url, timeout=30_000)
+        try:
+            resp = api.get(url, timeout=30_000)
+        except Exception:
+            break
         if resp.status != 200:
             break
         data = resp.json()
@@ -133,7 +134,9 @@ def api_get_json(api, url: str) -> list[dict]:
         url = None
         for part in link_header.split(","):
             if 'rel="next"' in part:
-                url = part.split("<")[1].split(">")[0]
+                match = re.search(r"<([^>]+)>", part)
+                if match:
+                    url = match.group(1)
     return results
 
 
@@ -153,6 +156,8 @@ def scrape_files_api(api, course: Course, course_dir: Path, downloaded_urls: set
     for folder in folders:
         folder_name = folder.get("full_name", "").replace("course files", "").strip("/") or "root"
         folder_id = folder.get("id")
+        if not folder_id:
+            continue
         files = api_get_json(api, f"{base_url}/api/v1/folders/{folder_id}/files?per_page=100")
         folder_dest = dest_dir / sanitize(folder_name) if folder_name != "root" else dest_dir
         for f in files:
@@ -172,9 +177,12 @@ def scrape_modules_api(api, course: Course, course_dir: Path, downloaded_urls: s
         return
 
     for mod in modules:
+        mod_id = mod.get("id")
+        if not mod_id:
+            continue
         mod_name = sanitize(mod.get("name", "unnamed"))
         items = api_get_json(
-            api, f"{base_url}/api/v1/courses/{course.id}/modules/{mod['id']}/items?per_page=100"
+            api, f"{base_url}/api/v1/courses/{course.id}/modules/{mod_id}/items?per_page=100"
         )
         mod_dest = dest_dir / mod_name
 
@@ -237,6 +245,9 @@ def scrape_assignments_api(
         return
 
     for a in assignments:
+        assign_id = a.get("id")
+        if not assign_id:
+            continue
         desc = a.get("description") or ""
         for match in re.finditer(r"/files/(\d+)", desc):
             file_id = match.group(1)
@@ -253,7 +264,7 @@ def scrape_assignments_api(
 
         try:
             sub_resp = api.get(
-                f"{base_url}/api/v1/courses/{course.id}/assignments/{a['id']}/submissions/self",
+                f"{base_url}/api/v1/courses/{course.id}/assignments/{assign_id}/submissions/self",
                 timeout=30_000,
             )
             if sub_resp.status == 200:
@@ -310,7 +321,7 @@ def scrape_modules_page(
     try:
         page.goto(f"{course.url}/modules", timeout=30_000)
         page.wait_for_load_state("networkidle")
-    except PwTimeout:
+    except Exception:
         return
 
     if "unauthorized" in page.url or "login" in page.url:
@@ -333,7 +344,7 @@ def scrape_modules_page(
             page.wait_for_load_state("networkidle")
             for url in collect_file_urls_from_page(page, base_url):
                 download_file(api, url, dest_dir, downloaded_urls)
-        except PwTimeout:
+        except Exception:
             continue
 
 
@@ -344,7 +355,7 @@ def scrape_assignments_page(
     try:
         page.goto(f"{course.url}/assignments", timeout=30_000)
         page.wait_for_load_state("networkidle")
-    except PwTimeout:
+    except Exception:
         return
 
     if "unauthorized" in page.url or "login" in page.url:
@@ -365,7 +376,7 @@ def scrape_assignments_page(
             page.wait_for_load_state("networkidle")
             for url in collect_file_urls_from_page(page, base_url):
                 download_file(api, url, dest_dir, downloaded_urls)
-        except PwTimeout:
+        except Exception:
             continue
 
 
@@ -376,7 +387,7 @@ def scrape_pages_page(
     try:
         page.goto(f"{course.url}/pages", timeout=30_000)
         page.wait_for_load_state("networkidle")
-    except PwTimeout:
+    except Exception:
         return
 
     if "unauthorized" in page.url or "login" in page.url:
@@ -397,7 +408,7 @@ def scrape_pages_page(
             page.wait_for_load_state("networkidle")
             for url in collect_file_urls_from_page(page, base_url):
                 download_file(api, url, dest_dir, downloaded_urls)
-        except PwTimeout:
+        except Exception:
             continue
 
 
@@ -407,7 +418,7 @@ def scrape_pages_page(
 def run(base_url: str, download_dir: Path) -> None:
     from playwright.sync_api import sync_playwright
 
-    download_dir.mkdir(exist_ok=True)
+    download_dir.mkdir(parents=True, exist_ok=True)
     downloaded_urls: set[str] = set()
 
     with sync_playwright() as p:
@@ -425,14 +436,17 @@ def run(base_url: str, download_dir: Path) -> None:
             print(f"\n=== {course.name} ===")
             course_dir = download_dir / course.name
 
-            scrape_files_api(api, course, course_dir, downloaded_urls)
-            scrape_modules_api(api, course, course_dir, downloaded_urls)
-            scrape_assignments_api(api, course, course_dir, downloaded_urls)
-            scrape_pages_api(api, course, course_dir, downloaded_urls)
+            try:
+                scrape_files_api(api, course, course_dir, downloaded_urls)
+                scrape_modules_api(api, course, course_dir, downloaded_urls)
+                scrape_assignments_api(api, course, course_dir, downloaded_urls)
+                scrape_pages_api(api, course, course_dir, downloaded_urls)
 
-            scrape_modules_page(page, api, course, course_dir, base_url, downloaded_urls)
-            scrape_assignments_page(page, api, course, course_dir, base_url, downloaded_urls)
-            scrape_pages_page(page, api, course, course_dir, base_url, downloaded_urls)
+                scrape_modules_page(page, api, course, course_dir, base_url, downloaded_urls)
+                scrape_assignments_page(page, api, course, course_dir, base_url, downloaded_urls)
+                scrape_pages_page(page, api, course, course_dir, base_url, downloaded_urls)
+            except Exception as e:
+                print(f"  [error] Failed to fully scrape {course.name}: {e}")
 
         browser.close()
         print("\nDone!")
