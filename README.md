@@ -46,20 +46,20 @@ playwright install chromium
 ## Usage
 
 ```bash
-canvas-download --url https://canvas.yourinstitution.edu
+canvas-download --url https://canvas.<yourinstitution>.edu
 ```
 
 Or equivalently, from the source directory:
 
 ```bash
 cd Canvas_Course_Downloads/src
-python3 -m canvas_course_downloads --url https://canvas.yourinstitution.edu
+python3 -m canvas_course_downloads --url https://canvas.<yourinstitution>.edu
 ```
 
 You can also set the URL as an environment variable to avoid passing it every time:
 
 ```bash
-export CANVAS_URL=https://canvas.yourinstitution.edu
+export CANVAS_URL=https://canvas.<yourinstitution>.edu
 canvas-download
 ```
 
