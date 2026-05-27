@@ -49,9 +49,10 @@ playwright install chromium
 canvas-download --url https://canvas.yourinstitution.edu
 ```
 
-Or equivalently:
+Or equivalently, from the source directory:
 
 ```bash
+cd Canvas_Course_Downloads/src
 python3 -m canvas_course_downloads --url https://canvas.yourinstitution.edu
 ```
 
