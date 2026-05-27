@@ -33,7 +33,7 @@ def login(page, base_url: str) -> None:
             const url = window.location.href;
             return url.startsWith(baseUrl) && !url.includes('/login');
         }""",
-        base_url,
+        arg=base_url,
         timeout=300_000,
         polling=1000,
     )
