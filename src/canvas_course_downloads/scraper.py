@@ -206,7 +206,8 @@ def scrape_modules_api(api, course: Course, course_dir: Path, downloaded_urls: s
                     resp = api.get(url, timeout=30_000)
                     if resp.status != 200:
                         continue
-                    body = resp.json().get("body") or resp.json().get("description") or ""
+                    data = resp.json()
+                    body = data.get("body") or data.get("description") or ""
                     for match in re.finditer(r"/files/(\d+)", body):
                         file_id = match.group(1)
                         file_resp = api.get(
@@ -250,16 +251,19 @@ def scrape_assignments_api(
             except Exception:
                 continue
 
-        sub_resp = api.get(
-            f"{base_url}/api/v1/courses/{course.id}/assignments/{a['id']}/submissions/self",
-            timeout=30_000,
-        )
-        if sub_resp.status == 200:
-            sub = sub_resp.json()
-            for att in sub.get("attachments") or []:
-                file_url = att.get("url")
-                if file_url:
-                    download_file(api, file_url, dest_dir / "my_submissions", downloaded_urls)
+        try:
+            sub_resp = api.get(
+                f"{base_url}/api/v1/courses/{course.id}/assignments/{a['id']}/submissions/self",
+                timeout=30_000,
+            )
+            if sub_resp.status == 200:
+                sub = sub_resp.json()
+                for att in sub.get("attachments") or []:
+                    file_url = att.get("url")
+                    if file_url:
+                        download_file(api, file_url, dest_dir / "my_submissions", downloaded_urls)
+        except Exception:
+            continue
 
 
 def scrape_pages_api(api, course: Course, course_dir: Path, downloaded_urls: set[str]) -> None:
