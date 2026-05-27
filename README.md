@@ -1,14 +1,14 @@
 # Canvas Course Downloads
 
-Download all accessible files from your Canvas LMS courses. Opens a real browser window for SSO/2FA authentication, then systematically downloads every file it can find.
+Download all accessible files from your Canvas LMS courses. Opens a real browser window for SSO/2FA authentication, then systematically downloads every file it can find. No API key or token required — it reuses your browser session.
 
 ## How It Works
 
 The scraper uses a two-pass approach for each course:
 
-1. **API pass** — Queries the Canvas REST API (`/api/v1/...`) for structured data: file listings, module items, assignment descriptions, and wiki pages.
+1. **Authenticated API pass** — After you log in through the browser, the scraper queries Canvas REST endpoints (`/api/v1/...`) using your existing session cookies. No separate API key or token setup is needed.
 
-2. **Page-scraping pass** — Navigates to each course section in the browser and scans for download links, catching anything the API missed.
+2. **Page-scraping pass** — Navigates to each course section in the browser and scans for download links, catching anything the first pass missed.
 
 Files are deduplicated by URL across both passes.
 
@@ -41,15 +41,23 @@ playwright install chromium
 
 ## Usage
 
+Run directly without installing:
+
+```bash
+python3 -m canvas_course_downloads --url https://canvas.yourinstitution.edu
+```
+
+Or, if installed via `pip install .`:
+
 ```bash
 canvas-download --url https://canvas.yourinstitution.edu
 ```
 
-Or set the URL as an environment variable:
+You can also set the URL as an environment variable:
 
 ```bash
 export CANVAS_URL=https://canvas.yourinstitution.edu
-canvas-download
+python3 -m canvas_course_downloads
 ```
 
 ### Options
