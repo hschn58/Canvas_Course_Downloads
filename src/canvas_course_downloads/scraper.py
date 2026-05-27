@@ -28,26 +28,25 @@ def unique_path(dest_dir: Path, filename: str) -> Path:
 def login(page, base_url: str) -> None:
     page.goto(f"{base_url}/login")
     print("Please log in through the browser (SSO + Duo)...")
-    page.wait_for_url(f"{base_url}/**", timeout=300_000)
+    page.wait_for_function(
+        """(baseUrl) => {
+            const url = window.location.href;
+            return url.startsWith(baseUrl) && !url.includes('/login');
+        }""",
+        base_url,
+        timeout=300_000,
+        polling=1000,
+    )
     print("Logged in!")
 
 
-def get_courses(page, base_url: str) -> list[Course]:
-    page.goto(f"{base_url}/courses")
-    page.wait_for_load_state("networkidle")
-
-    rows = page.query_selector_all("tr.course-list-table-row")
+def get_courses(api, base_url: str) -> list[Course]:
+    courses_data = api_get_json(api, f"{base_url}/api/v1/courses?per_page=100")
     courses = []
-    for row in rows:
-        link = row.query_selector("a[href*='/courses/']")
-        if not link:
-            continue
-        href = link.get_attribute("href")
-        name = link.inner_text().strip()
-        if not href or not name:
-            continue
-        course_id = href.rstrip("/").split("/")[-1]
-        if not course_id.isdigit():
+    for c in courses_data:
+        course_id = str(c.get("id", ""))
+        name = c.get("name", "")
+        if not course_id or not name:
             continue
         courses.append(
             Course(id=course_id, name=sanitize(name), url=f"{base_url}/courses/{course_id}")
@@ -86,8 +85,9 @@ def download_file(api, url: str, dest_dir: Path, downloaded_urls: set[str]) -> N
 
         fname = sanitize(fname)
         dest_path = unique_path(dest_dir, fname)
-        dest_path.write_bytes(resp.body())
-        print(f"    [ok] {fname} ({len(resp.body()) // 1024}KB)")
+        body = resp.body()
+        dest_path.write_bytes(body)
+        print(f"    [ok] {fname} ({len(body) // 1024}KB)")
     except Exception as e:
         print(f"    [fail] {url[-50:]} ({e})")
 
@@ -125,7 +125,10 @@ def api_get_json(api, url: str) -> list[dict]:
         resp = api.get(url, timeout=30_000)
         if resp.status != 200:
             break
-        results.extend(resp.json())
+        data = resp.json()
+        if not isinstance(data, list):
+            break
+        results.extend(data)
         link_header = resp.headers.get("link", "")
         url = None
         for part in link_header.split(","):
@@ -409,9 +412,9 @@ def run(base_url: str, download_dir: Path) -> None:
         page = context.new_page()
 
         login(page, base_url)
-        courses = get_courses(page, base_url)
 
         api = context.request
+        courses = get_courses(api, base_url)
         courses.sort(key=lambda c: c.name)
 
         for course in courses:
