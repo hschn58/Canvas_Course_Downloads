@@ -34,30 +34,32 @@ downloads/
 
 ## Installation
 
+Clone the repo and install locally (not published to PyPI):
+
 ```bash
+git clone https://github.com/hschn58/Canvas_Course_Downloads.git
+cd Canvas_Course_Downloads
 pip install .
 playwright install chromium
 ```
 
 ## Usage
 
-Run directly without installing:
+```bash
+canvas-download --url https://canvas.yourinstitution.edu
+```
+
+Or equivalently:
 
 ```bash
 python3 -m canvas_course_downloads --url https://canvas.yourinstitution.edu
 ```
 
-Or, if installed via `pip install .`:
-
-```bash
-canvas-download --url https://canvas.yourinstitution.edu
-```
-
-You can also set the URL as an environment variable:
+You can also set the URL as an environment variable to avoid passing it every time:
 
 ```bash
 export CANVAS_URL=https://canvas.yourinstitution.edu
-python3 -m canvas_course_downloads
+canvas-download
 ```
 
 ### Options
